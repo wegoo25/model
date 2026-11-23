@@ -82,3 +82,39 @@ python -m pytest tests -q
 Covers every model (forward/backward, checkpoint round-trip), numerical equivalence with the original code (models and losses, using `git archive pre-refactor`), metrics, data pipeline, all configs, train → resume → eval → embedding extraction, MUSAN/RIR augmentation (synthetic), and 2-process DDP over gloo on CPU.
 
 Not covered: GPU/ROCm execution and AMP, NCCL, and training on the real VoxCeleb/MUSAN data (none were available during the refactor).
+
+## Full-dataset run (not executed during the refactor)
+
+The refactor was validated only on synthetic data on a CPU-only machine (2 cores, ~7 GB RAM, ~7 GB free disk). A full run was not possible there: VoxCeleb2 dev is ~300 GB of AAC audio (1,092,009 utterances, 5,994 speakers), VoxCeleb1 is ~40 GB, the downloads require registered credentials, and training needs a GPU for days.
+
+**Requirements**
+- ~500 GB free disk after wav conversion; `ffmpeg` and `wget`; VoxCeleb credentials; a CUDA or ROCm GPU.
+- MUSAN and RIRS_NOISES only for `--augment true`.
+- `train_list.txt` (`speaker_id relative/path.wav` per line) and `veri_test2.txt` (`label path1 path2`), downloaded from the VoxCeleb site (not in this repo).
+
+**Commands**
+```bash
+python scripts/prepare_data.py --save_path data --user U --password P --download --extract --convert --augment
+python scripts/train.py --config configs/MKRC_AAM.yaml --train_list lists/train_list.txt --train_path data/voxceleb2 \
+    --test_list lists/veri_test2.txt --test_path data/voxceleb1 --nClasses 5994 --save_path exps/MKRC_AAM [--distributed --mixedprec]
+```
+
+**Expected output**
+- Per epoch: `Epoch N, TEER/TAcc …, TLOSS …, LR …`; every `--eval_interval` epochs (default 3) and at the last epoch: `Epoch N, VEER x.xx, MinDCF y.yyy` plus `model%09d.model` and `.eer` in `<save_path>/model/`.
+- `scripts/evaluate.py` additionally writes `scores.npy`, `labels.npy`, `trials_scored.txt`.
+- Sanity check: a well-trained model typically reaches single-digit (or lower) EER on VoxCeleb1-O; EER near 50% or a flat TLOSS indicates a problem.
+- Cheap pre-check before a full run: `--max_epoch 2 --max_seg_per_spk 20`.
+
+## Test details
+
+`python -m pytest tests -q` → last full run: 81 passed, 1 skipped (triplet equivalence: the original no longer runs on current PyTorch), ~95 s on CPU, torch 2.9.1.
+
+| File | Covers |
+|---|---|
+| `test_models.py` | forward/backward of all 16 models, 3D/4D input, checkpoint round-trip, legacy checkpoint formats |
+| `test_equivalence.py` | models and losses vs. original code from tag `pre-refactor` (needs git and that tag) |
+| `test_components.py` | losses, metrics vs. brute force, fbank, dataset/sampler, all YAML configs |
+| `test_pipeline.py` | train → resume → eval, CLI scripts, nPerSpeaker=2 |
+| `test_distributed_augment.py` | MUSAN/RIR augmentation (synthetic), 2-process gloo DDP on CPU |
+
+Not tested: GPU/ROCm execution, AMP, NCCL, real VoxCeleb/MUSAN data, trained-model EER.
