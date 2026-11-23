@@ -1,9 +1,13 @@
-# torch>=1.7.0
-# torchaudio>=0.7.0
-asteroid_filterbanks==0.4.0
-# numpy
+# Install torch/torchaudio for your hardware first (CUDA, ROCm or CPU): https://pytorch.org/get-started/locally/
+torch>=2.1
+torchaudio>=2.1
+numpy
 scipy
 scikit-learn
-tqdm
-pyyaml
 soundfile
+pyyaml
+tqdm
+matplotlib
+einops
+asteroid_filterbanks==0.4.0
+pytest

@@ -1,6 +1,6 @@
 model: test_GAT
 encoder_type: ECA
-nOut: 512
+nOut: 256
 sinc_stride: 10
 max_frames: 300
 batch_size: 64
